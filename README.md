@@ -17,7 +17,7 @@
 ## 目录
 
 ```
-kebiao/
+timetable_app/
 ├── blank_app/
 ├── Timetable-Blank-1.0.apk
 ├── 开发计划.md
