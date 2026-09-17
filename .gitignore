@@ -1,0 +1,13 @@
+# 构建临时文件
+*.keystore
+/tmp/
+build/
+.gradle/
+
+# 系统临时文件
+__pycache__/
+*.pyc
+.DS_Store
+
+# 日志
+*.log
