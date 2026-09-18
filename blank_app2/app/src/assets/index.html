@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>课程表</title>
+<style>
+:root{
+  --bg:#0f1117;--card:#181b25;--card2:#1e2230;--line:#2a2f3f;
+  --txt:#e7e9ee;--sub:#9aa1b2;--accent:#5b8cff;
+  --c1:#5b8cff;--c2:#34c9a0;--c3:#ffb454;--c4:#ff6b8a;--c5:#a57bff;--c6:#4dc3ff;
+  --rowh:80px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+#app{max-width:720px;margin:0 auto;padding:8px 10px 40px}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.tb-title{font-size:16px;font-weight:600;color:var(--txt);flex:1}
+.tb-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font-size:20px;line-height:1}
+.tb-btn:active{background:#2a2f3f}
+.wkbox{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.wkbox .lbl{font-size:12px;color:var(--sub)}
+.wkbox .val{font-size:14px;font-weight:600;color:var(--accent);min-width:44px;text-align:center}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tool-btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:8px 12px;font-size:13px}
+.tool-btn:active{background:#2a2f3f}
+.tool-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.dayhead{display:grid;grid-template-columns:24px repeat(7,minmax(0,1fr));gap:4px;margin-bottom:6px}
+.dh-corner{font-size:10px;color:var(--sub);text-align:center;align-self:end;padding:0 0 2px}
+.dh-day{text-align:center;padding:5px 2px}
+.dh-day .dn{font-size:12px;font-weight:600;color:var(--txt)}
+.dh-day .dd{font-size:10px;color:var(--sub);margin-top:2px}
+.grid{display:grid;grid-template-columns:24px repeat(7,minmax(0,1fr));grid-auto-rows:var(--rowh);gap:4px}
+.period{font-size:11px;color:var(--sub);text-align:center;align-self:center;padding:0}
+.card{position:relative;border-radius:8px;background:var(--card);border:1px solid var(--line);padding:6px 6px;height:100%;display:flex;flex-direction:column;overflow:hidden}
+.card-del{position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:6px;border:1px solid var(--line);background:var(--card2);color:var(--sub);font-size:11px;line-height:16px;text-align:center;padding:0;cursor:pointer}
+.card-del:active{background:#2a2f3f;color:var(--txt)}
+.card.multi{border-top:2px solid}
+.card.multi::before{content:attr(data-wk);position:absolute;top:4px;right:8px;font-size:10px;color:var(--sub)}
+.tag{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:4px;overflow-wrap:anywhere}
+.meta{font-size:10px;color:var(--sub);line-height:1.35;overflow-wrap:anywhere;flex:1}
+.empty{border:1px dashed var(--line);border-radius:8px;height:100%;background:transparent;opacity:.35}
+.overlay{position:fixed;inset:0;background:#00000088;z-index:20;display:none;align-items:flex-start;justify-content:center;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:14px;width:100%;max-width:520px;max-height:85vh;overflow:auto;padding:16px}
+.modal h3{font-size:16px;margin:0 0 12px}
+.modal p{font-size:12px;color:var(--sub);line-height:1.6;margin:8px 0}
+.minput{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--txt);font-size:14px}
+textarea.inp{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--txt);font-size:13px;min-height:140px;font-family:inherit}
+.mrow{display:flex;gap:8px;margin-top:12px}
+.mbtn{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:10px;font-size:13px}
+.mbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.mbtn:active{opacity:.85}
+.status{font-size:12px;color:var(--sub);margin-top:10px}
+.status.error{color:#ff6b8a}
+.status.ok{color:#34c9a0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="tb-title" id="title">课程表</div>
+    <div class="wkbox">
+      <span class="lbl">周次</span>
+      <button class="tb-btn" id="prev">‹</button>
+      <span class="val" id="wk">第1周</span>
+      <button class="tb-btn" id="next">›</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool-btn primary" id="btnImport">导入课表</button>
+    <button class="tool-btn" id="btnPaste">粘贴导入</button>
+    <button class="tool-btn" id="btnAdd">添加课程</button>
+    <button class="tool-btn" id="btnClear">清空课表</button>
+    <button class="tool-btn" id="btnDate">第1周日期</button>
+    <button class="tool-btn" id="btnPeriod">节数</button>
+    <button class="tool-btn" id="btnExport">导出</button>
+    <button class="tool-btn" id="btnRestore">恢复</button>
+  </div>
+
+  <div class="dayhead" id="dayhead"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="pasteOverlay">
+  <div class="modal">
+    <h3>粘贴课表数据</h3>
+    <p>支持带表头的 CSV / TXT。自动识别列名，例如：
+      班级名称,课程名称,教师姓名,教室名称,周期,星期,开始节,结束节<br>
+      周期形如 7-14 或 5，星期 1=周一…7=周日；也支持每行一条竖线分隔文本。</p>
+    <textarea id="pasteArea" class="inp" placeholder="在此粘贴课程数据"></textarea>
+    <div class="mrow">
+      <button class="mbtn" id="pasteCancel">取消</button>
+      <button class="mbtn primary" id="pasteOk">导入</button>
+    </div>
+    <div class="status" id="pasteStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <h3>添加课程</h3>
+    <p>周期可填单周（如 5）或区间（如 7-14）。星期 1=周一…7=周日。</p>
+    <input id="addCourse" class="minput" placeholder="课程名称">
+    <input id="addTeacher" class="minput" placeholder="教师（可选）">
+    <input id="addRoom" class="minput" placeholder="教室（可选）">
+    <input id="addPeriod" class="minput" placeholder="周期，如 7-14">
+    <input id="addDay" class="minput" placeholder="星期，如 1">
+    <input id="addStart" class="minput" placeholder="开始节，如 1">
+    <input id="addEnd" class="minput" placeholder="结束节，如 2">
+    <div class="mrow">
+      <button class="mbtn" id="addCancel">取消</button>
+      <button class="mbtn primary" id="addOk">添加</button>
+    </div>
+    <div class="status" id="addStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="dateOverlay">
+  <div class="modal">
+    <h3>设置第1周周一日期</h3>
+    <p>用于推算每周一到周日的具体日期，不影响课程数据。</p>
+    <input id="dateInput" class="minput" type="date">
+    <div class="mrow">
+      <button class="mbtn" id="dateCancel">取消</button>
+      <button class="mbtn primary" id="dateOk">保存</button>
+    </div>
+    <div class="status" id="dateStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="periodOverlay">
+  <div class="modal">
+    <h3>每星期节数</h3>
+    <p>超过当前节数的课程在导入时会被过滤，建议与课程数据匹配。</p>
+    <input id="periodInput" class="minput" type="number" min="5" max="12">
+    <div class="mrow">
+      <button class="mbtn" id="periodCancel">取消</button>
+      <button class="mbtn primary" id="periodOk">保存</button>
+    </div>
+    <div class="status" id="periodStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="restoreOverlay">
+  <div class="modal">
+    <h3>恢复课表备份</h3>
+    <p>选择之前导出的 JSON 备份文件，恢复课程数据与设置。</p>
+    <input type="file" id="restoreInput" accept=".json,application/json" class="minput">
+    <div class="mrow">
+      <button class="mbtn" id="restoreCancel">取消</button>
+      <button class="mbtn primary" id="restoreOk">恢复</button>
+    </div>
+    <div class="status" id="restoreStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="fileOverlay">
+  <div class="modal">
+    <h3>导入课表文件</h3>
+    <p>选择 .csv / .txt 文件。自动识别表头列名（课程名称、教师姓名、教室名称、周期、星期、开始节、结束节，班级名称列可省略）。
+      周期形如 7-14 或 5，星期 1=周一…7=周日。导入失败会保留当前课表，不会清空。</p>
+    <input type="file" id="fileInput" accept=".csv,.txt,.tsv" class="minput">
+    <div class="mrow">
+      <button class="mbtn" id="fileCancel">取消</button>
+      <button class="mbtn primary" id="fileOk">读取文件</button>
+    </div>
+    <div class="status" id="fileStatus"></div>
+  </div>
+</div>
+
+<script>
+const RAW=[];
+let MAX_PERIOD=8;
+const DAYNAMES=["周一","周二","周三","周四","周五","周六","周日"];
+const DAYS=[1,2,3,4,5,6,7];
+let DATA=[];
+let cur=1,total=1;
+let subjects=[];let colorHex={};
+let settings={maxPeriod:8,week1Date:"2026-08-31"};
+function parseRange(range){
+  const parts=String(range).split("-").map(x=>parseInt(x,10));
+  if(parts.length===1)return{min:parts[0],max:parts[0]};
+  return{min:Math.min(parts[0],parts[1]),max:Math.max(parts[0],parts[1])};
+}
+function normalizeRow(r){
+  if(!Array.isArray(r)||r.length<7)return null;
+  const course=String(r[0]||"").trim();
+  const teacher=String(r[1]||"").trim();
+  const room=String(r[2]||"").trim();
+  const period=String(r[3]||"").trim();
+  const day=parseInt(r[4],10);
+  const start=parseInt(r[5],10);
+  const end=parseInt(r[6],10);
+  if(!course||isNaN(day)||isNaN(start)||isNaN(end)||day<1||day>7||start<1||end<start||!period)return null;
+  const rr=parseRange(period);
+  if(!rr||rr.min<1||rr.max<rr.min)return null;
+  if(start>MAX_PERIOD||end>MAX_PERIOD)return null;
+  return [course,teacher,room,period,day,start,end];
+}
+function persistState(){
+  const payload=JSON.stringify({data:DATA,total:total,cur:cur,settings:settings,version:2});
+  if(window.ttStorage){ window.ttStorage.saveTimetable(payload); }
+}
+function restoreState(){
+  if(!window.ttStorage)return false;
+  const raw=window.ttStorage.readSavedTimetable();
+  if(!raw)return false;
+  try{
+    const obj=JSON.parse(raw);
+    settings=obj.settings&&typeof obj.settings==="object"?obj.settings:{maxPeriod:8,week1Date:"2026-08-31"};
+    if(!settings.week1Date)settings.week1Date="2026-08-31";
+    MAX_PERIOD=parseInt(settings.maxPeriod,10)||8;
+    DATA=Array.isArray(obj.data)?obj.data.map(normalizeRow).filter(Boolean):[];
+    total=Math.max(1,parseInt(obj.total,10)||1);
+    cur=Math.max(1,parseInt(obj.cur,10)||1);
+    return true;
+  }catch(e){return false;}
+}
+function deleteCourse(r){
+  const i=DATA.indexOf(r);
+  if(i>=0)DATA.splice(i,1);
+  if(DATA.length===0){total=1;cur=1;}
+  else{let m=1;DATA.forEach(x=>{const rr=parseRange(x[3]);m=Math.max(m,rr.max);});total=m;cur=Math.min(cur,total);}
+  rebuildColors();
+  persistState();
+  render();
+}
+function rebuildColors(){
+  subjects=[...new Set(DATA.map(r=>r[0]))];
+  colorHex={};subjects.forEach((s,i)=>colorHex[s]=["#5b8cff","#34c9a0","#ffb454","#ff6b8a","#a57bff","#4dc3ff"][i%6]);
+}
+function parseRange(range){
+  const parts=String(range).split("-").map(x=>parseInt(x,10));
+  if(parts.length===1)return{min:parts[0],max:parts[0]};
+  return{min:Math.min(parts[0],parts[1]),max:Math.max(parts[0],parts[1])};
+}
+function activeForWeek(wk){
+  return DATA.filter(r=>{const rr=parseRange(r[3]);return wk>=rr.min&&wk<=rr.max;});
+}
+function dayDateStr(wk,dayIndex){
+  const parts=String(settings.week1Date||"2026-08-31").split("-").map(x=>parseInt(x,10));
+  const y=parts[0]||2026,m=parts[1]||8,d=parts[2]||31;
+  const base=new Date(y,m-1,d);
+  base.setDate(d+(wk-1)*7+dayIndex);
+  return (base.getMonth()+1)+"月"+base.getDate()+"日";
+}
+function buildDayHead(){
+  const dh=document.getElementById("dayhead");
+  dh.innerHTML="";
+  const corner=document.createElement("div");corner.className="dh-corner";corner.textContent="节";dh.appendChild(corner);
+  DAYNAMES.forEach(d=>{
+    const el=document.createElement("div");el.className="dh-day";
+    el.innerHTML='<div class="dn">'+d+'</div><div class="dd"></div>';
+    dh.appendChild(el);
+  });
+}
+function updateDates(){
+  const days=document.querySelectorAll("#dayhead .dh-day .dd");
+  DAYS.forEach((d,i)=>{days[i].textContent=dayDateStr(cur,i);});
+}
+function render(){
+  document.getElementById("wk").textContent="第"+cur+"周";
+  updateDates();
+  const grid=document.getElementById("grid");
+  grid.innerHTML="";
+  grid.style.gridTemplateColumns="24px repeat(7,minmax(0,1fr))";
+  grid.style.gridAutoRows="80px";
+  grid.style.gap="4px";
+  const act=activeForWeek(cur);
+  const cellMap={};
+  act.forEach(r=>{
+    const day=r[4],start=r[5],end=r[6];
+    const rr=parseRange(r[3]);
+    const wkLabel=(rr.min===rr.max)?("第"+rr.min+"周"):(rr.min+"–"+rr.max+"周");
+    const span=end-start+1;
+    const key=day+"_"+start;
+    (cellMap[key]=cellMap[key]||[]).push({r:r,span:span,wkLabel:wkLabel});
+    for(let k=1;k<span;k++){
+      const kkey=day+"_"+(start+k);
+      cellMap[kkey]=cellMap[kkey]||[];
+      cellMap[kkey].__occupied=true;
+    }
+  });
+  for(let p=1;p<=MAX_PERIOD;p++){
+    const label=document.createElement("div");label.className="period";label.textContent=p;
+    label.style.gridRow=p;label.style.gridColumn="1";
+    grid.appendChild(label);
+    DAYS.forEach((d,di)=>{
+      const key=d+"_"+p;
+      const arr=cellMap[key]||[];
+      const items=arr.filter(x=>x.r);
+      if(items.length>0){
+        items.forEach(item=>{
+          const r=item.r;const start=r[5],span=item.span;
+          const card=document.createElement("div");
+          card.className="card"+(span>1?" multi":"");
+          if(span>1)card.setAttribute("data-wk",item.wkLabel);
+          card.style.gridColumn=(di+2);
+          card.style.gridRow=p+" / "+(p+span);
+          const color=colorHex[r[0]]||"#5b8cff";
+          card.style.borderTop="2px solid "+color;
+          const del=document.createElement("button");
+          del.className="card-del";
+          del.textContent="×";
+          del.onclick=(ev)=>{ev.stopPropagation();deleteCourse(r);};
+          card.appendChild(del);
+          const tag=document.createElement("div");tag.className="tag";tag.style.color=color;tag.textContent=r[0];
+          card.appendChild(tag);
+          const meta=document.createElement("div");meta.className="meta";
+          meta.textContent=(r[2]?"@ "+r[2]:"")+(r[1]?" · "+r[1]:"");
+          if(!r[2]&&!r[1])meta.textContent="";
+          card.appendChild(meta);
+          grid.appendChild(card);
+        });
+      }else{
+        const occupied=(cellMap[key]||[]).some(x=>x.__occupied);
+        if(!occupied){
+          const e=document.createElement("div");
+          e.className="empty";
+          e.style.gridColumn=(di+2);
+          e.style.gridRow=p;
+          grid.appendChild(e);
+        }
+      }
+    });
+  }
+}
+
+function parseLine(line, columns, hasColumnMode){
+  let parts;
+  if(line.indexOf("|")>=0){
+    parts=line.split("|");
+  }else{
+    parts=line.split(",");
+  }
+  parts=parts.map(x=>x==null?"":String(x).trim());
+  let course="",teacher="",room="",period="",dayStr="",startStr="",endStr="";
+  if(hasColumnMode && columns){
+    const pick=(name)=>{
+      const idx=columns[name];
+      return idx!=null&&idx>=0&&idx<parts.length?parts[idx]:"";
+    };
+    course=pick("course");
+    teacher=pick("teacher");
+    room=pick("room");
+    period=pick("period");
+    dayStr=pick("day");
+    startStr=pick("start");
+    endStr=pick("end");
+  }else{
+    if(parts.length>=7){
+      const endNum=parseInt(parts[parts.length-1],10);
+      const startNum=parseInt(parts[parts.length-2],10);
+      const dayNum=parseInt(parts[parts.length-3],10);
+      if(!isNaN(endNum)&&!isNaN(startNum)&&!isNaN(dayNum)&&dayNum>=1&&dayNum<=7){
+        const base=parts.length-3;
+        dayStr=parts[base];
+        startStr=parts[base+1];
+        endStr=parts[base+2];
+        const courseIdx=parts.findIndex(p=>/^课程/.test(p));
+        if(courseIdx>=0&&courseIdx<parts.length-4){
+          course=parts[courseIdx];
+        }else if(parts.length-4>=0){
+          course=parts[parts.length-4];
+        }
+        const teacherIdx=parts.findIndex(p=>/^教师/.test(p));
+        if(teacherIdx>=0&&teacherIdx<parts.length-4){
+          teacher=parts[teacherIdx];
+        }else{
+          teacher=(course&&course===parts[parts.length-4]&&parts.length>=5)?parts[parts.length-5]:"";
+        }
+        const roomIdx=parts.findIndex(p=>/^教室/.test(p));
+        if(roomIdx>=0){
+          room=parts[roomIdx];
+        }else{
+          const candidates=parts.filter((v,i)=>i<base&&v&&isNaN(parseInt(v,10))&&v!=="0"&&!/周次|学期|导出/.test(v));
+          const roomLike=candidates.find(v=>/楼|室|实训|多媒体/.test(v));
+          room=roomLike||candidates[candidates.length-1]||"";
+        }
+        const periodIdx=parts.findIndex(p=>/^周次|^周期/.test(p));
+        if(periodIdx>=0){
+          period=parts[periodIdx];
+        }else{
+          const periodLike=parts.find((v,i)=>i<base&&v&&/^\d+\s*-\s*\d+$/.test(v));
+          period=periodLike||"";
+        }
+      }
+    }
+  }
+  const day=parseInt(dayStr,10);
+  const startP=parseInt(startStr,10);
+  const endP=parseInt(endStr,10);
+  if(!course)return null;
+  if(isNaN(day)||day<1||day>7)return null;
+  if(isNaN(startP)||isNaN(endP)||startP<1||endP<startP)return null;
+  if(!period)return null;
+  if(endP>32)return null;
+  return [course,teacher,room,period,day,startP,endP];
+}
+function detectHeader(columnsFromText){
+  const map={};
+  columnsFromText.forEach((cell, idx)=>{
+    const c=(cell||"").trim();
+    if(/课程/.test(c) && !/代码/.test(c)) map.course=idx;
+    else if(/教师|老师/.test(c)) map.teacher=idx;
+    else if(/教室/.test(c)) map.room=idx;
+    else if(/周次|^周期$|周期名称/.test(c)) map.period=idx;
+    else if(/星期/.test(c)) map.day=idx;
+    else if(/开始节/.test(c)) map.start=idx;
+    else if(/结束节/.test(c)) map.end=idx;
+  });
+  if(map.course==null||map.day==null||map.start==null||map.end==null){
+    return null;
+  }
+  return map;
+}
+function parseImportText(text){
+  const lines=text.split(/\r?\n/).map(l=>l.replace(/\s+$/,"")).filter(l=>l.trim());
+  const out=[];let err=0;
+  let header=null;
+  let hasColumnMode=false;
+  lines.forEach((rawLine)=>{
+    const l=rawLine.trim();
+    if(!l)return;
+    if(/课表导出日期|导出日期|学期|学号|姓名|电话|班级名称/.test(l) && !/^\d/.test(l)){
+      if(l.indexOf(",")>=0 || l.indexOf("|")>=0){
+        const parts=l.split(l.indexOf("|")>=0?"|":",");
+        const det=detectHeader(parts.map(x=>x?x.trim():""));
+        if(det && !hasColumnMode){
+          header=det;
+          hasColumnMode=true;
+        }
+      }
+      return;
+    }
+    const parts=l.indexOf("|")>=0?l.split("|"):l.split(",");
+    const trimmedParts=parts.map(x=>x?x.trim():"");
+    if(!hasColumnMode){
+      const det=detectHeader(trimmedParts);
+      if(det){
+        header=det;
+        hasColumnMode=true;
+        return;
+      }
+    }
+    const row=parseLine(l, header, hasColumnMode);
+    if(row){
+      out.push(row);
+    }else{
+      if(/\d+\s*[-]\s*\d+|^\d+$/.test(l)) err++;
+    }
+  });
+  return {rows:out,errors:err};
+}
+function conflictCount(rows){
+  const cellMap={};
+  let conflicts=0;
+  rows.forEach(r=>{
+    const rr=parseRange(r[3]);
+    for(let w=rr.min;w<=rr.max;w++){
+      const active=rows.filter(x=>{
+        const xr=parseRange(x[3]);
+        return w>=xr.min&&w<=xr.max&&x[4]===r[4];
+      });
+      const seen={};
+      active.forEach(x=>{
+        const s=x[5],e=x[6];
+        for(let p=s;p<=e;p++){
+          const key=r[4]+"_"+p;
+          if(seen[key])conflicts++;
+          else seen[key]=true;
+        }
+      });
+      break;
+    }
+  });
+  return conflicts;
+}
+function applyData(rows, keepOnFail){
+  if(!rows||rows.length===0){
+    if(keepOnFail){
+      render();
+    }
+    return false;
+  }
+  const validRows=rows.map(normalizeRow).filter(Boolean);
+  if(validRows.length===0){
+    render();
+    return false;
+  }
+  DATA=validRows.slice();
+  rebuildColors();
+  let maxWk=1;
+  DATA.forEach(r=>{const rr=parseRange(r[3]);maxWk=Math.max(maxWk,rr.max);});
+  total=maxWk;
+  cur=1;
+  persistState();
+  render();
+  const conflicts=conflictCount(DATA);
+  if(conflicts>0){
+    const st=document.getElementById("fileStatus");
+    if(st&&!st.classList.contains("ok")){st.textContent="已导入，但检测到 "+conflicts+" 处同周次节次重叠";st.className="status";}
+  }
+  return true;
+}
+
+document.getElementById("btnImport").onclick=()=>{
+  document.getElementById("fileStatus").textContent="";
+  document.getElementById("fileStatus").className="status";
+  document.getElementById("fileOverlay").classList.add("show");
+};
+document.getElementById("fileCancel").onclick=()=>{
+  document.getElementById("fileOverlay").classList.remove("show");
+  document.getElementById("fileInput").value="";
+};
+document.getElementById("fileOk").onclick=()=>{
+  const file=document.getElementById("fileInput").files[0];
+  const st=document.getElementById("fileStatus");
+  if(!file){st.textContent="请先选择文件";st.className="status error";return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const res=parseImportText(e.target.result);
+    if(applyData(res.rows,true)){
+      st.textContent="导入成功，共 "+res.rows.length+" 条"+(res.errors?"，跳过 "+res.errors+" 行无效数据":"");
+      st.className="status ok";
+      setTimeout(()=>{document.getElementById("fileOverlay").classList.remove("show");},600);
+    }else{
+      st.textContent="未识别到有效课程，已保留当前课表，请检查格式";st.className="status error";
+    }
+  };
+  reader.readAsText(file,"utf-8");
+};
+
+document.getElementById("btnPaste").onclick=()=>{
+  document.getElementById("pasteStatus").textContent="";
+  document.getElementById("pasteStatus").className="status";
+  document.getElementById("pasteOverlay").classList.add("show");
+};
+document.getElementById("pasteCancel").onclick=()=>{
+  document.getElementById("pasteOverlay").classList.remove("show");
+};
+document.getElementById("pasteOk").onclick=()=>{
+  const text=document.getElementById("pasteArea").value;
+  const st=document.getElementById("pasteStatus");
+  const res=parseImportText(text);
+  if(applyData(res.rows,true)){
+    st.textContent="导入成功，共 "+res.rows.length+" 条"+(res.errors?"，跳过 "+res.errors+" 行无效数据":"");
+    st.className="status ok";
+    document.getElementById("pasteArea").value="";
+    setTimeout(()=>{document.getElementById("pasteOverlay").classList.remove("show");},600);
+  }else{
+    st.textContent="未识别到有效课程，已保留当前课表，请检查格式";st.className="status error";
+  }
+};
+
+document.getElementById("btnClear").onclick=()=>{
+  DATA=[];
+  rebuildColors();
+  total=1;
+  cur=1;
+  persistState();
+  render();
+};
+
+document.getElementById("btnAdd").onclick=()=>{
+  document.getElementById("addStatus").textContent="";
+  document.getElementById("addStatus").className="status";
+  document.getElementById("addOverlay").classList.add("show");
+};
+document.getElementById("addCancel").onclick=()=>{
+  document.getElementById("addOverlay").classList.remove("show");
+};
+document.getElementById("addOk").onclick=()=>{
+  const course=document.getElementById("addCourse").value.trim();
+  const teacher=document.getElementById("addTeacher").value.trim();
+  const room=document.getElementById("addRoom").value.trim();
+  const period=document.getElementById("addPeriod").value.trim();
+  const day=parseInt(document.getElementById("addDay").value,10);
+  const start=parseInt(document.getElementById("addStart").value,10);
+  const end=parseInt(document.getElementById("addEnd").value,10);
+  const st=document.getElementById("addStatus");
+  if(!course||isNaN(day)||isNaN(start)||isNaN(end)){st.textContent="请至少填写课程名，并确保星期/节次为数字";st.className="status error";return;}
+  const row=normalizeRow([course,teacher,room,period||"1-1",day,start,end]);
+  if(!row){st.textContent="添加失败：检查周期、星期、节次是否合法";st.className="status error";return;}
+  DATA.push(row);
+  rebuildColors();
+  let m=1;DATA.forEach(r=>{const rr=parseRange(r[3]);m=Math.max(m,rr.max);});
+  total=m;
+  persistState();render();
+  ["addCourse","addTeacher","addRoom","addPeriod","addDay","addStart","addEnd"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("addOverlay").classList.remove("show");
+};
+
+document.getElementById("btnDate").onclick=()=>{
+  document.getElementById("dateStatus").textContent="";
+  document.getElementById("dateStatus").className="status";
+  document.getElementById("dateInput").value=settings.week1Date||"";
+  document.getElementById("dateOverlay").classList.add("show");
+};
+document.getElementById("dateCancel").onclick=()=>{
+  document.getElementById("dateOverlay").classList.remove("show");
+};
+document.getElementById("dateOk").onclick=()=>{
+  const v=document.getElementById("dateInput").value.trim();
+  if(!v){document.getElementById("dateStatus").textContent="请选择日期";document.getElementById("dateStatus").className="status error";return;}
+  settings.week1Date=v;
+  persistState();
+  render();
+  document.getElementById("dateOverlay").classList.remove("show");
+};
+
+document.getElementById("btnPeriod").onclick=()=>{
+  document.getElementById("periodStatus").textContent="";
+  document.getElementById("periodStatus").className="status";
+  document.getElementById("periodInput").value=MAX_PERIOD;
+  document.getElementById("periodOverlay").classList.add("show");
+};
+document.getElementById("periodCancel").onclick=()=>{
+  document.getElementById("periodOverlay").classList.remove("show");
+};
+document.getElementById("periodOk").onclick=()=>{
+  const v=parseInt(document.getElementById("periodInput").value,10);
+  if(isNaN(v)||v<5||v>12){document.getElementById("periodStatus").textContent="请输入 5 到 12 之间的节数";document.getElementById("periodStatus").className="status error";return;}
+  MAX_PERIOD=v;
+  settings.maxPeriod=v;
+  DATA=DATA.map(normalizeRow).filter(Boolean);
+  persistState();
+  render();
+  document.getElementById("periodOverlay").classList.remove("show");
+};
+
+document.getElementById("btnExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify({data:DATA,total:total,cur:cur,settings:settings,version:2},null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="timetable-app2-backup.json";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+};
+
+document.getElementById("btnRestore").onclick=()=>{
+  document.getElementById("restoreStatus").textContent="";
+  document.getElementById("restoreStatus").className="status";
+  document.getElementById("restoreInput").value="";
+  document.getElementById("restoreOverlay").classList.add("show");
+};
+document.getElementById("restoreCancel").onclick=()=>{
+  document.getElementById("restoreOverlay").classList.remove("show");
+  document.getElementById("restoreInput").value="";
+};
+document.getElementById("restoreOk").onclick=()=>{
+  const file=document.getElementById("restoreInput").files[0];
+  const st=document.getElementById("restoreStatus");
+  if(!file){st.textContent="请先选择备份文件";st.className="status error";return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const obj=JSON.parse(e.target.result);
+      settings=obj.settings&&typeof obj.settings==="object"?obj.settings:{maxPeriod:8,week1Date:"2026-08-31"};
+      if(!settings.week1Date)settings.week1Date="2026-08-31";
+      MAX_PERIOD=parseInt(settings.maxPeriod,10)||8;
+      DATA=Array.isArray(obj.data)?obj.data.map(normalizeRow).filter(Boolean):[];
+      total=Math.max(1,parseInt(obj.total,10)||1);
+      cur=Math.max(1,parseInt(obj.cur,10)||1);
+      rebuildColors();
+      persistState();
+      render();
+      st.textContent="恢复成功，共 "+DATA.length+" 条课程";
+      st.className="status ok";
+      setTimeout(()=>{document.getElementById("restoreOverlay").classList.remove("show");},600);
+    }catch(err){
+      st.textContent="备份文件解析失败，已保留当前课表";
+      st.className="status error";
+    }
+  };
+  reader.readAsText(file,"utf-8");
+};
+
+document.getElementById("prev").onclick=()=>{if(cur>1){cur--;persistState();render();}};
+document.getElementById("next").onclick=()=>{if(cur<total){cur++;persistState();render();}};
+
+if(restoreState()){
+  rebuildColors();
+}else{
+  DATA=[];
+  total=1;
+  cur=1;
+}
+if(cur>total)cur=total;
+if(cur<1)cur=1;
+buildDayHead();
+render();
+</script>
+</body>
+</html>
