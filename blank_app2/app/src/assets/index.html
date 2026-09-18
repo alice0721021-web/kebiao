@@ -34,8 +34,15 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,"PingFang S
 .grid{display:grid;grid-template-columns:24px repeat(7,minmax(0,1fr));grid-auto-rows:var(--rowh);gap:4px}
 .period{font-size:11px;color:var(--sub);text-align:center;align-self:center;padding:0}
 .card{position:relative;border-radius:8px;background:var(--card);border:1px solid var(--line);padding:6px 6px;height:100%;display:flex;flex-direction:column;overflow:hidden}
-.card-del{position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:6px;border:1px solid var(--line);background:var(--card2);color:var(--sub);font-size:11px;line-height:16px;text-align:center;padding:0;cursor:pointer}
-.card-del:active{background:#2a2f3f;color:var(--txt)}
+.card{cursor:pointer}
+.empty{cursor:pointer}
+.menu{position:fixed;z-index:30;display:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 22px #00000066;min-width:132px}
+.menu.show{display:block}
+.menu .mt{font-size:12px;color:var(--sub);padding:6px 10px 4px}
+.menu .mi{width:100%;border:0;background:transparent;color:var(--txt);text-align:left;font-size:14px;padding:10px;border-radius:8px}
+.menu .mi:active{background:var(--card2)}
+.menu .mi.danger{color:#ff6b8a}
+.menu .mi.primary{color:var(--accent)}
 .card.multi{border-top:2px solid}
 .card.multi::before{content:attr(data-wk);position:absolute;top:4px;right:8px;font-size:10px;color:var(--sub)}
 .tag{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:4px;overflow-wrap:anywhere}
@@ -157,6 +164,27 @@ textarea.inp{width:100%;background:var(--card2);border:1px solid var(--line);bor
   </div>
 </div>
 
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <h3>修改课程</h3>
+    <p>周期可填单周（如 5）或区间（如 7-14）。星期 1=周一…7=周日。</p>
+    <input id="editCourse" class="minput" placeholder="课程名称">
+    <input id="editTeacher" class="minput" placeholder="教师（可选）">
+    <input id="editRoom" class="minput" placeholder="教室（可选）">
+    <input id="editPeriod" class="minput" placeholder="周期，如 7-14">
+    <input id="editDay" class="minput" placeholder="星期，如 1">
+    <input id="editStart" class="minput" placeholder="开始节，如 1">
+    <input id="editEnd" class="minput" placeholder="结束节，如 2">
+    <div class="mrow">
+      <button class="mbtn" id="editCancel">取消</button>
+      <button class="mbtn primary" id="editOk">保存</button>
+    </div>
+    <div class="status" id="editStatus"></div>
+  </div>
+</div>
+
+<div class="menu" id="cardMenu"></div>
+
 <div class="overlay" id="fileOverlay">
   <div class="modal">
     <h3>导入课表文件</h3>
@@ -220,6 +248,7 @@ function restoreState(){
   }catch(e){return false;}
 }
 function deleteCourse(r){
+  closeCardMenu();
   const i=DATA.indexOf(r);
   if(i>=0)DATA.splice(i,1);
   if(DATA.length===0){total=1;cur=1;}
@@ -227,6 +256,110 @@ function deleteCourse(r){
   rebuildColors();
   persistState();
   render();
+}
+function updateCourse(oldRow, nextRow){
+  closeCardMenu();
+  const i=DATA.indexOf(oldRow);
+  if(i>=0)DATA[i]=nextRow;
+  else DATA.push(nextRow);
+  rebuildColors();
+  let m=1;DATA.forEach(x=>{const rr=parseRange(x[3]);m=Math.max(m,rr.max);});
+  total=m;cur=Math.min(Math.max(1,cur),total);
+  persistState();
+  render();
+}
+function openEditOverlay(row){
+  closeCardMenu();
+  document.getElementById("editStatus").textContent="";
+  document.getElementById("editStatus").className="status";
+  document.getElementById("editCourse").value=row[0];
+  document.getElementById("editTeacher").value=row[1];
+  document.getElementById("editRoom").value=row[2];
+  document.getElementById("editPeriod").value=row[3];
+  document.getElementById("editDay").value=row[4];
+  document.getElementById("editStart").value=row[5];
+  document.getElementById("editEnd").value=row[6];
+  document.getElementById("editOverlay").dataset.rowIndex=String(DATA.indexOf(row));
+  document.getElementById("editOverlay").classList.add("show");
+}
+function openAddOverlay(prefill){
+  document.getElementById("addStatus").textContent="";
+  document.getElementById("addStatus").className="status";
+  document.getElementById("addCourse").value=prefill.course||"";
+  document.getElementById("addTeacher").value=prefill.teacher||"";
+  document.getElementById("addRoom").value=prefill.room||"";
+  document.getElementById("addPeriod").value=prefill.period||"1-1";
+  document.getElementById("addDay").value=prefill.day||"";
+  document.getElementById("addStart").value=prefill.start||"";
+  document.getElementById("addEnd").value=prefill.end||"";
+  document.getElementById("addOverlay").classList.add("show");
+}
+function triggerLongPress(el, onTrigger){
+  let startX=0,startY=0,startT=0,triggered=false,timer=null,active=false;
+  el.style.webkitTapHighlightColor="transparent";
+  el.addEventListener("touchstart",(ev)=>{
+    if(ev.touches.length!==1)return;
+    active=true;triggered=false;
+    startX=ev.touches[0].clientX;startY=ev.touches[0].clientY;startT=Date.now();
+    clearTimeout(timer);
+    timer=setTimeout(()=>{active=false;triggered=true;onTrigger();},500);
+  },{passive:true});
+  el.addEventListener("touchmove",(ev)=>{
+    if(!active)return;
+    const dx=Math.abs(ev.touches[0].clientX-startX);
+    const dy=Math.abs(ev.touches[0].clientY-startY);
+    if(dx>10||dy>10){active=false;clearTimeout(timer);}
+  },{passive:true});
+  const clear=(ev)=>{
+    if(!active&&ev&&ev.type==="touchend")return;
+    active=false;clearTimeout(timer);
+  };
+  el.addEventListener("touchend",clear,{passive:true});
+  el.addEventListener("touchcancel",clear,{passive:true});
+}
+function closeCardMenu(){
+  const m=document.getElementById("cardMenu");
+  if(m){m.classList.remove("show");m.innerHTML="";}
+}
+function showCardMenu(x,y,title,items){
+  closeCardMenu();
+  const m=document.getElementById("cardMenu");
+  m.innerHTML="";
+  const t=document.createElement("div");t.className="mt";t.textContent=title;m.appendChild(t);
+  items.forEach(it=>{
+    const b=document.createElement("button");
+    b.className="mi"+(it.cls||"");
+    b.textContent=it.label;
+    b.onclick=(ev)=>{ev.stopPropagation();closeCardMenu();it.fn();};
+    m.appendChild(b);
+  });
+  const vw=window.innerWidth||document.documentElement.clientWidth||320;
+  m.style.left=Math.max(8,Math.min(x,vw-150))+"px";
+  m.style.top=Math.max(8,y)+"px";
+  m.classList.add("show");
+}
+function openCardMenuForCard(r, cardEl){
+  const rect=cardEl.getBoundingClientRect();
+  showCardMenu(rect.right-132, rect.bottom+4, "操作课程", [
+    {label:"修改", cls:"primary", fn:()=>openEditOverlay(r)},
+    {label:"删除", cls:"danger", fn:()=>deleteCourse(r)}
+  ]);
+}
+function openCardMenuForEmpty(day, start, emptyEl){
+  const rect=emptyEl.getBoundingClientRect();
+  showCardMenu(rect.left, rect.bottom+4, "新增课程", [
+    {label:"增加", cls:"primary", fn:()=>{
+      openAddOverlay({day:day, start:start, end:start, period:"1-1"});
+      document.getElementById("addDay").focus();
+    }}
+  ]);
+}
+function closeOverlays(){
+  ["fileOverlay","pasteOverlay","addOverlay","editOverlay","dateOverlay","periodOverlay","restoreOverlay"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.remove("show");
+  });
+  closeCardMenu();
 }
 function rebuildColors(){
   subjects=[...new Set(DATA.map(r=>r[0]))];
@@ -302,11 +435,7 @@ function render(){
           card.style.gridRow=p+" / "+(p+span);
           const color=colorHex[r[0]]||"#5b8cff";
           card.style.borderTop="2px solid "+color;
-          const del=document.createElement("button");
-          del.className="card-del";
-          del.textContent="×";
-          del.onclick=(ev)=>{ev.stopPropagation();deleteCourse(r);};
-          card.appendChild(del);
+          triggerLongPress(card, ()=>openCardMenuForCard(r, card));
           const tag=document.createElement("div");tag.className="tag";tag.style.color=color;tag.textContent=r[0];
           card.appendChild(tag);
           const meta=document.createElement("div");meta.className="meta";
@@ -322,6 +451,7 @@ function render(){
           e.className="empty";
           e.style.gridColumn=(di+2);
           e.style.gridRow=p;
+          triggerLongPress(e, ()=>openCardMenuForEmpty(d, p, e));
           grid.appendChild(e);
         }
       }
@@ -566,12 +696,10 @@ document.getElementById("btnClear").onclick=()=>{
 };
 
 document.getElementById("btnAdd").onclick=()=>{
-  document.getElementById("addStatus").textContent="";
-  document.getElementById("addStatus").className="status";
-  document.getElementById("addOverlay").classList.add("show");
+  openAddOverlay({});
 };
 document.getElementById("addCancel").onclick=()=>{
-  document.getElementById("addOverlay").classList.remove("show");
+  closeOverlays();
 };
 document.getElementById("addOk").onclick=()=>{
   const course=document.getElementById("addCourse").value.trim();
@@ -591,7 +719,27 @@ document.getElementById("addOk").onclick=()=>{
   total=m;
   persistState();render();
   ["addCourse","addTeacher","addRoom","addPeriod","addDay","addStart","addEnd"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("addOverlay").classList.remove("show");
+  closeOverlays();
+};
+document.getElementById("editCancel").onclick=()=>{
+  closeOverlays();
+};
+document.getElementById("editOk").onclick=()=>{
+  const idx=parseInt(document.getElementById("editOverlay").dataset.rowIndex||"-1",10);
+  if(idx<0||idx>=DATA.length)return;
+  const oldRow=DATA[idx];
+  const course=document.getElementById("editCourse").value.trim();
+  const teacher=document.getElementById("editTeacher").value.trim();
+  const room=document.getElementById("editRoom").value.trim();
+  const period=document.getElementById("editPeriod").value.trim();
+  const day=parseInt(document.getElementById("editDay").value,10);
+  const start=parseInt(document.getElementById("editStart").value,10);
+  const end=parseInt(document.getElementById("editEnd").value,10);
+  const st=document.getElementById("editStatus");
+  if(!course||isNaN(day)||isNaN(start)||isNaN(end)){st.textContent="请保留课程名，并确保星期/节次为数字";st.className="status error";return;}
+  const nextRow=normalizeRow([course,teacher,room,period||oldRow[3],day,start,end]);
+  if(!nextRow){st.textContent="修改失败：检查周期、星期、节次是否合法";st.className="status error";return;}
+  updateCourse(oldRow, nextRow);
 };
 
 document.getElementById("btnDate").onclick=()=>{
